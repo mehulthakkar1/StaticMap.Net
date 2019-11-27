@@ -4,20 +4,17 @@ using System.Collections.Specialized;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Web;
 
-namespace StaticMapUtility
+namespace StaticMap.Net
 {
-    public class StaticMapUtility
+    public class StaticMap
     {
         /// <summary>
         /// This is migrated code from php
         /// Any time facing problem in execution, visit main code at https://github.com/esripdx/Static-Maps-API-PHP/blob/master/img.php
         /// </summary>
-
         const short TILE_SIZE = 256;
         string tileURL;
         double latitude, longitude;
@@ -29,7 +26,7 @@ namespace StaticMapUtility
         List<Dictionary<string, string>> markers = new List<Dictionary<string, string>>();
         Dictionary<string, string> properties;
 
-        public StaticMapUtility(string tileServerUrl = "")
+        public StaticMap(string tileServerUrl = "")
         {
             tileURL = tileServerUrl;
         }
@@ -200,7 +197,7 @@ namespace StaticMapUtility
                         // Adjust the bounds to fit the path
                         foreach (Match point in latlngColl)
                         {
-                            coords.Add(new Coordinate(point.Groups["lat"].Value, point.Groups["lng"].Value));
+                            coords.Add(new Coordinate { Latitude = point.Groups["lat"].Value, Longitude = point.Groups["lng"].Value });
                             if (double.Parse(point.Groups["lat"].Value) < bounds["minLat"])
                                 bounds["minLat"] = double.Parse(point.Groups["lat"].Value);
                             if (double.Parse(point.Groups["lat"].Value) > bounds["maxLat"])

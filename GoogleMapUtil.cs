@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
-using System.Web;
 
-namespace StaticMapUtility
+namespace StaticMap.Net
 {
     public static class GoogleMapsUtil
     {
@@ -92,10 +89,10 @@ namespace StaticMapUtility
                 currentLng += (sum & 1) == 1 ? ~(sum >> 1) : (sum >> 1);
 
                 yield return new Coordinate
-                (
-                    (Convert.ToDouble(currentLat) / 1E5).ToString(),
-                    (Convert.ToDouble(currentLng) / 1E5).ToString()
-                );
+                {
+                     Latitude = (Convert.ToDouble(currentLat) / 1E5).ToString(),
+                     Longitude = (Convert.ToDouble(currentLng) / 1E5).ToString()
+                };
             }
         }
 

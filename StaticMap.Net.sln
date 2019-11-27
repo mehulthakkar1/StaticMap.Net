@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.21005.1
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29509.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StaticMapUtility", "StaticMapUtility.csproj", "{8C026235-E3F4-4775-8CAF-A54070B55500}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StaticMap.Net", "StaticMap.Net.csproj", "{8C026235-E3F4-4775-8CAF-A54070B55500}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,5 +18,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C8F4B738-D711-4EA2-9921-FFEB6350842A}
 	EndGlobalSection
 EndGlobal
