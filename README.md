@@ -1,5 +1,5 @@
 # StaticMap.Net
-A library to generate static map
+A C# library to generate static map
 
 ## How to use
 Add the StaticMap.Net dll in your project.
