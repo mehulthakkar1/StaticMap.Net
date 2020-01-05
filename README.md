@@ -1,2 +1,2 @@
 # StaticMap.Net
-A dll to generate static map
+A library to generate static map
