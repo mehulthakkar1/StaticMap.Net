@@ -54,6 +54,7 @@
     <Compile Include="WebMercator.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
     <None Include="packages.config" />
     <EmbeddedResource Include="TileServices.json" />
   </ItemGroup>
