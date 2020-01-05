@@ -1,0 +1,9 @@
+F:\git\StaticMap.Net\bin\Debug\StaticMap.NET.dll
+F:\git\StaticMap.Net\bin\Debug\StaticMap.NET.pdb
+F:\git\StaticMap.Net\bin\Debug\Newtonsoft.Json.dll
+F:\git\StaticMap.Net\bin\Debug\Newtonsoft.Json.xml
+F:\git\StaticMap.Net\obj\Debug\StaticMap.Net.csproj.CoreCompileInputs.cache
+F:\git\StaticMap.Net\obj\Debug\StaticMap.Net.csproj.CopyComplete
+F:\git\StaticMap.Net\obj\Debug\StaticMap.NET.dll
+F:\git\StaticMap.Net\obj\Debug\StaticMap.NET.pdb
+F:\git\StaticMap.Net\obj\Debug\StaticMap.Net.csprojAssemblyReference.cache

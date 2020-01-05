@@ -7,8 +7,8 @@
     <ProjectGuid>{8C026235-E3F4-4775-8CAF-A54070B55500}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>StaticMapUtility</RootNamespace>
-    <AssemblyName>StaticMapUtility</AssemblyName>
+    <RootNamespace>StaticMap.NET</RootNamespace>
+    <AssemblyName>StaticMap.NET</AssemblyName>
     <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -30,6 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
@@ -43,9 +46,16 @@
   <ItemGroup>
     <Compile Include="Coordinate.cs" />
     <Compile Include="GoogleMapUtil.cs" />
+    <Compile Include="OtherMapProperties.cs" />
+    <Compile Include="Marker.cs" />
+    <Compile Include="Polygon.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StaticMap.cs" />
     <Compile Include="WebMercator.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <EmbeddedResource Include="TileServices.json" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

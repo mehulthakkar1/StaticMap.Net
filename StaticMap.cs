@@ -1,9 +1,12 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using StaticMap.NET;
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Web;
 
@@ -16,139 +19,95 @@ namespace StaticMap.Net
         /// Any time facing problem in execution, visit main code at https://github.com/esripdx/Static-Maps-API-PHP/blob/master/img.php
         /// </summary>
         const short TILE_SIZE = 256;
-        string tileURL;
-        double latitude, longitude;
-        short zoom = 0;
-        short width, height;
-        double leftEdge;
-        double topEdge;
-        WebMercator webmercator = new WebMercator();
-        List<Dictionary<string, string>> markers = new List<Dictionary<string, string>>();
-        Dictionary<string, string> properties;
-
-        public StaticMap(string tileServerUrl = "")
+        // If any markers are specified, choose a default lat/lng as the center of all the markers
+        readonly Dictionary<string, double> bounds;
+                
+        public StaticMap()
         {
-            tileURL = tileServerUrl;
+            bounds = new Dictionary<string, double>{
+              {"minLat" , 90},
+              {"maxLat" , -90},
+              {"minLng" , 180},
+              {"maxLng" , -180}
+            };
         }
 
-        List<Dictionary<string, string>> pathProps = new List<Dictionary<string, string>>();
-        Dictionary<string, List<Coordinate>> paths = new Dictionary<string, List<Coordinate>>();
-
-        Dictionary<string, List<string>> tileServices = new Dictionary<string, List<string>>{
-          {"streets" , new List<string> {"http://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{Z}/{Y}/{X}" }},
-          {"satellite" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{Z}/{Y}/{X}"
-          }},
-          {"hybrid" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{Z}/{Y}/{X}",
-            "http://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{Z}/{Y}/{X}"
-          }},
-          {"topo" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{Z}/{Y}/{X}"
-          }},
-          {"gray" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{Z}/{Y}/{X}",
-            "http://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{Z}/{Y}/{X}"
-          }},
-          {"gray-background" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{Z}/{Y}/{X}",
-          }},
-          {"oceans" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{Z}/{Y}/{X}"
-          }},
-          {"national-geographic" , new List<string> {
-            "http://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{Z}/{Y}/{X}"
-          }},
-          {"osm" , new List<string> {
-            "http://tile.openstreetmap.org/{Z}/{X}/{Y}.png"
-          }},
-          {"stamen-toner" , new List<string> {
-            "http://tile.stamen.com/toner/{Z}/{X}/{Y}.png"
-          }},
-          {"stamen-toner-background" , new List<string> {
-            "http://tile.stamen.com/toner-background/{Z}/{X}/{Y}.png"
-          }},
-          {"stamen-toner-lite" , new List<string> {
-            "http://tile.stamen.com/toner-lite/{Z}/{X}/{Y}.png"
-          }},
-          {"stamen-terrain" , new List<string> {
-            "http://tile.stamen.com/terrain/{Z}/{X}/{Y}.png"
-          }},
-          {"stamen-terrain-background" , new List<string> {
-            "http://tile.stamen.com/terrain-background/{Z}/{X}/{Y}.png"
-          }},
-          {"stamen-watercolor" , new List<string> {
-            "http://tile.stamen.com/watercolor/{Z}/{X}/{Y}.png"
-          }}
-        };
-        // If any markers are specified, choose a default lat/lng as the center of all the markers
-        Dictionary<string, double> bounds = new Dictionary<string, double>{
-          {"minLat" , 90},
-          {"maxLat" , -90},
-          {"minLng" , 180},
-          {"maxLng" , -180}
-        };
-
-        public void GetMarkers(HttpRequestBase httpRequest)
+        public Dictionary<string, List<string>> GetDefaultTileServices()
         {
-            NameValueCollection queryStringColl = httpRequest.QueryString;
-            Dictionary<string, string> properties;
-            if (queryStringColl["marker"] != null)
+            var aAss = Assembly.GetExecutingAssembly();
+            var aAssName = aAss.FullName.Split(',')[0];
+            var aStream = aAss.GetManifestResourceStream(aAssName + ".TileServices.json");
+            var tileServiceList = "";
+            using (var aStreamReader = new StreamReader(aStream))
             {
-                string[] markerColl = queryStringColl.GetValues("marker");
+                tileServiceList = aStreamReader.ReadToEnd();
+            }
+            return JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(tileServiceList);
+        }
+
+        public List<Marker> GetMarkers(HttpRequestBase httpRequest)
+        {
+            var markers = new List<Marker>();
+            var queryStringColl = httpRequest.QueryString;
+            if (queryStringColl["markers"] != null)
+            {
+                var markerColl = queryStringColl.GetValues("markers");
 
                 foreach (string marker in markerColl)
                 {
-                    properties = new Dictionary<string, string>();
-                    Regex expr = new Regex(@"(?<k>[a-z]+):(?<v>[^;]+)");
-                    MatchCollection keyValuePairs = expr.Matches(marker);
+                    var properties = new Dictionary<string, string>();
+                    var expr = new Regex(@"(?<k>[a-z]+):(?<v>[^;]+)");
+                    var keyValuePairs = expr.Matches(marker);
 
                     foreach (Match match in keyValuePairs)
                     {
-
                         properties.Add(match.Groups["k"].Value, match.Groups["v"].Value);
                     }
-
+                    var iconImg = "";
                     if (properties.ContainsKey("icon") && properties.ContainsKey("lat") && properties.ContainsKey("lng"))
                     {
-                        properties.Add("iconImg", HttpContext.Current.Server.MapPath("~/content/images/markers/" + properties["icon"] + ".png"));
+                        iconImg = HttpContext.Current.Server.MapPath("~/content/images/markers/" + properties["icon"] + ".png");
                     }
 
-                    if (properties.ContainsKey("iconImg"))
+                    if (iconImg != string.Empty)
                     {
-                        markers.Add(properties);
-
-
-                        if (double.Parse(properties["lat"]) < bounds["minLat"])
-                            bounds["minLat"] = double.Parse(properties["lat"]);
-                        if (double.Parse(properties["lat"]) > bounds["maxLat"])
-                            bounds["maxLat"] = double.Parse(properties["lat"]);
-                        if (double.Parse(properties["lng"]) < bounds["minLng"])
-                            bounds["minLng"] = double.Parse(properties["lng"]);
-                        if (double.Parse(properties["lng"]) > bounds["maxLng"])
-                            bounds["maxLng"] = double.Parse(properties["lng"]);
-
+                        var m = new Marker {
+                            Coordinate = new Coordinate {
+                                Latitude = properties["lat"],
+                                Longitude = properties["lng"]
+                            },
+                            Properties = properties,
+                            IconImg = iconImg
+                        };
+                        markers.Add(m);
+                        bounds["minLat"] = Math.Min(double.Parse(properties["lat"]), bounds["minLat"]);
+                        bounds["maxLat"] = Math.Max(double.Parse(properties["lat"]), bounds["maxLat"]);
+                        bounds["minLng"] = Math.Min(double.Parse(properties["lng"]), bounds["minLng"]);
+                        bounds["maxLng"] = Math.Max(double.Parse(properties["lng"]), bounds["maxLng"]);
                     }
                 }
             }
-
+            return markers;
         }
 
-        public void GetPaths(HttpRequestBase httpRequest)
+        public List<Polyline> GetPaths(HttpRequestBase httpRequest)
         {
-            NameValueCollection queryStringColl = httpRequest.QueryString;
+            var polylines = new List<Polyline>(); ;
+            var pathProps = new List<Dictionary<string, string>>();
+            var queryStringColl = httpRequest.QueryString;
 
             if (queryStringColl["path"] != null)
             {
-                int pathCount = 0;
+                var pathCount = 0;
 
-                string[] pathColl = queryStringColl.GetValues("path");
+                var pathColl = queryStringColl.GetValues("path");
 
-                foreach (string path in pathColl)
+                foreach (var path in pathColl)
                 {
-                    properties = new Dictionary<string, string>();
-                    Regex expr = new Regex(@"(?<k>[a-z]+):(?<v>[^;]+)");
-                    MatchCollection keyValuePairs = expr.Matches(path);
+                    var polyline = new Polyline();
+                    var properties = new Dictionary<string, string>();
+                    var expr = new Regex(@"(?<k>[a-z]+):(?<v>[^;]+)");
+                    var keyValuePairs = expr.Matches(path);
 
                     foreach (Match match in keyValuePairs)
                     {
@@ -160,88 +119,81 @@ namespace StaticMap.Net
                         properties.Add("color", "333333");
                     if (!properties.ContainsKey("weight"))
                         properties.Add("weight", "3");
-                    List<Coordinate> coords = null;
 
+                    polyline.Color = properties["color"];
+                    polyline.Weight = properties["weight"];
+                    
                     if (properties.ContainsKey("enc"))
                     {
-                        coords = GoogleMapsUtil.Decode(properties["enc"]).ToList();
-                        if (coords.Count > 0)
+                        polyline.Coordinates = GoogleMapsUtil.Decode(properties["enc"]).ToList();
+                        if (polyline.Coordinates.Count > 0)
                         {
                             ++pathCount;
-                            foreach (Coordinate coord in coords)
+                            foreach (Coordinate coord in polyline.Coordinates)
                             {
-                                if (double.Parse(coord.Latitude) < bounds["minLat"])
-                                    bounds["minLat"] = double.Parse(coord.Latitude);
-                                if (double.Parse(coord.Latitude) > bounds["maxLat"])
-                                    bounds["maxLat"] = double.Parse(coord.Latitude);
-                                if (double.Parse(coord.Longitude) < bounds["minLng"])
-                                    bounds["minLng"] = double.Parse(coord.Longitude);
-                                if (double.Parse(coord.Longitude) > bounds["maxLng"])
-                                    bounds["maxLng"] = double.Parse(coord.Longitude);
-
+                                bounds["minLat"] = Math.Min(double.Parse(coord.Latitude), bounds["minLat"]);
+                                bounds["maxLat"] = Math.Max(double.Parse(coord.Latitude), bounds["maxLat"]);
+                                bounds["minLng"] = Math.Min(double.Parse(coord.Longitude), bounds["minLng"]);
+                                bounds["maxLng"] = Math.Max(double.Parse(coord.Longitude), bounds["maxLng"]);
                             }
                         }
                     }
                     else
                     {
                         // Now parse the points into an array
-                        Regex pathexpr = new Regex(@"\[(?<lat>[0-9\.-]+),(?<lng>[0-9\.-]+)\]");
+                        var pathexpr = new Regex(@"\[(?<lat>[0-9\.-]+),(?<lng>[0-9\.-]+)\]");
 
-                        MatchCollection latlngColl = pathexpr.Matches(path);
+                        var latlngColl = pathexpr.Matches(path);
 
                         if (latlngColl.Count > 0)
                         {
                             ++pathCount;
-                            coords = new List<Coordinate>();
+                            polyline.Coordinates = new List<Coordinate>();
                         }
                         // Adjust the bounds to fit the path
                         foreach (Match point in latlngColl)
                         {
-                            coords.Add(new Coordinate { Latitude = point.Groups["lat"].Value, Longitude = point.Groups["lng"].Value });
-                            if (double.Parse(point.Groups["lat"].Value) < bounds["minLat"])
-                                bounds["minLat"] = double.Parse(point.Groups["lat"].Value);
-                            if (double.Parse(point.Groups["lat"].Value) > bounds["maxLat"])
-                                bounds["maxLat"] = double.Parse(point.Groups["lat"].Value);
-                            if (double.Parse(point.Groups["lng"].Value) < bounds["minLng"])
-                                bounds["minLng"] = double.Parse(point.Groups["lng"].Value);
-                            if (double.Parse(point.Groups["lng"].Value) > bounds["maxLng"])
-                                bounds["maxLng"] = double.Parse(point.Groups["lng"].Value);
-
+                            polyline.Coordinates.Add(new Coordinate { Latitude = point.Groups["lat"].Value, Longitude = point.Groups["lng"].Value });
+                            bounds["minLat"] = Math.Min(double.Parse(point.Groups["lat"].Value), bounds["minLat"]);
+                            bounds["maxLat"] = Math.Max(double.Parse(point.Groups["lat"].Value), bounds["maxLat"]);
+                            bounds["minLng"] = Math.Min(double.Parse(point.Groups["lng"].Value), bounds["minLng"]);
+                            bounds["maxLng"] = Math.Max(double.Parse(point.Groups["lng"].Value), bounds["maxLng"]);
                         }
                     }
-                    paths.Add(pathCount.ToString(), coords);
+                    polyline.Key = pathCount.ToString();
                     properties.Add("path", pathCount.ToString());
-                    pathProps.Add(properties);
-
+                    polyline.Properties = properties;
+                    polylines.Add(polyline);
                 }
             }
+            return polylines;
         }
 
-        public void GetOtherQueryStringParams(HttpRequestBase httpRequest)
+        public OtherMapProperties GetOtherQueryStringParams(HttpRequestBase httpRequest)
         {
-            NameValueCollection queryStringColl = httpRequest.QueryString;
+            var otherMapProp = new OtherMapProperties();
+            var queryStringColl = httpRequest.QueryString;
 
             var defaultLatitude = bounds["minLat"] + ((bounds["maxLat"] - bounds["minLat"]) / 2);
             var defaultLongitude = bounds["minLng"] + ((bounds["maxLng"] - bounds["minLng"]) / 2);
             if (httpRequest["latitude"] != null)
             {
-                latitude = double.Parse(httpRequest["latitude"].ToString());
-                longitude = double.Parse(httpRequest["longitude"].ToString());
+                otherMapProp.Latitude = double.Parse(httpRequest["latitude"].ToString());
+                otherMapProp.Longitude = double.Parse(httpRequest["longitude"].ToString());
             }
             else
             {
-                latitude = defaultLatitude;
-                longitude = defaultLongitude;
+                otherMapProp.Latitude = defaultLatitude;
+                otherMapProp.Longitude = defaultLongitude;
             }
-
-
-            width = httpRequest["width"] == null ? (short)300 : short.Parse(httpRequest["width"]);
-            height = httpRequest["height"] == null ? (short)300 : short.Parse(httpRequest["height"]);
+            
+            otherMapProp.Width = httpRequest["width"] == null ? (short)300 : short.Parse(httpRequest["width"]);
+            otherMapProp.Height = httpRequest["height"] == null ? (short)300 : short.Parse(httpRequest["height"]);
 
             // If no zoom is specified, choose a zoom level that will fit all the markers and the path
             if (httpRequest["zoom"] != null)
             {
-                zoom = short.Parse(httpRequest["zoom"]);
+                otherMapProp.Zoom = short.Parse(httpRequest["zoom"]);
             }
             else
             {
@@ -250,44 +202,38 @@ namespace StaticMap.Net
                 var doesNotFit = true;
                 while (fitZoom > 1 && doesNotFit)
                 {
-                    var center = webmercator.LatLngToPixels(latitude, longitude, fitZoom);
-                    leftEdge = center["x"] - width / 2;
-                    topEdge = center["y"] - height / 2;
+                    var center = WebMercator.LatLngToPixels(otherMapProp.Latitude, otherMapProp.Longitude, fitZoom);
                     // check if the bounding rectangle fits within width/height
-                    var sw = webmercator.LatLngToPixels(bounds["minLat"], bounds["minLng"], fitZoom);
-                    var ne = webmercator.LatLngToPixels(bounds["maxLat"], bounds["maxLng"], fitZoom);
+                    var sw = WebMercator.LatLngToPixels(bounds["minLat"], bounds["minLng"], fitZoom);
+                    var ne = WebMercator.LatLngToPixels(bounds["maxLat"], bounds["maxLng"], fitZoom);
                     var fitHeight = Math.Abs(ne["y"] - sw["y"]);
                     var fitWidth = Math.Abs(ne["x"] - sw["x"]);
-                    if (fitHeight <= height && fitWidth <= width)
+                    if (fitHeight <= otherMapProp.Height && fitWidth <= otherMapProp.Width)
                     {
                         doesNotFit = false;
                     }
                     fitZoom--;
                 }
-                zoom = fitZoom;
+                otherMapProp.Zoom = fitZoom;
             }
 
             //First check tileUrl from constructor 
-            if (string.IsNullOrWhiteSpace(tileURL))
+            if (string.IsNullOrWhiteSpace(otherMapProp.TileService))
             {
+                var tileServices = GetDefaultTileServices();
                 //if tileUrl is not in constructor, try to get from querystring
                 if (httpRequest["basemap"] != null && tileServices.ContainsKey(httpRequest["basemap"]))
                 {
-                    tileURL = tileServices[httpRequest["basemap"]][0];
-                    if (tileServices[httpRequest["basemap"]].Count > 1)
-                    {
-                    }
-                    else
-                    {
-                    }
+                    otherMapProp.TileService = tileServices[httpRequest["basemap"]][0];
                 }
                 else
                 {
                     //if tileUrl is not in constructor and not in querystring, get default from defined list
-                    tileURL = tileServices["osm"][0];
+                    otherMapProp.TileService = tileServices["osm"][0];
                 }
 
             }
+            return otherMapProp;
         }
 
         public string UrlForTile(double x, double y, short z, string tileURL)
@@ -298,19 +244,19 @@ namespace StaticMap.Net
 
         public Bitmap CreateImage(HttpRequestBase httpRequest)
         {
-            GetMarkers(httpRequest);
-            GetPaths(httpRequest);
-            GetOtherQueryStringParams(httpRequest);
+            var markers = GetMarkers(httpRequest);
+            var paths = GetPaths(httpRequest);
+            var otherMapProp = GetOtherQueryStringParams(httpRequest);
 
-            var center = webmercator.LatLngToPixels(latitude, longitude, zoom);
+            var center = WebMercator.LatLngToPixels(otherMapProp.Latitude, otherMapProp.Longitude, otherMapProp.Zoom);
 
-            var leftEdge = center["x"] - width / 2;
-            var topEdge = center["y"] - height / 2;
-            var tilePos = webmercator.PixelsToTile(center["x"], center["y"]);
+            var leftEdge = center["x"] - otherMapProp.Width / 2;
+            var topEdge = center["y"] - otherMapProp.Height / 2;
+            var tilePos = WebMercator.PixelsToTile(center["x"], center["y"]);
 
-            var pos = webmercator.PositionInTile(center["x"], center["y"]);
-            var neTile = webmercator.PixelsToTile(center["x"] + width / 2, center["y"] + height / 2);
-            var swTile = webmercator.PixelsToTile(center["x"] - width / 2, center["y"] - height / 2);
+            var pos = WebMercator.PositionInTile(center["x"], center["y"]);
+            var neTile = WebMercator.PixelsToTile(center["x"] + otherMapProp.Width / 2, center["y"] + otherMapProp.Height / 2);
+            var swTile = WebMercator.PixelsToTile(center["x"] - otherMapProp.Width / 2, center["y"] - otherMapProp.Height / 2);
 
             // Now download all the tiles
             var tiles = new Dictionary<string, Dictionary<string, Stream>>();
@@ -326,7 +272,7 @@ namespace StaticMap.Net
                 }
                 for (double y = swTile["y"]; y <= neTile["y"]; y++)
                 {
-                    var url = UrlForTile(x, y, zoom, tileURL);
+                    var url = UrlForTile(x, y, otherMapProp.Zoom, otherMapProp.TileService);
                     tiles[x.ToString()].Add(y.ToString(), null);
                     urls[x.ToString()].Add(y.ToString(), url);
                     numTiles++;
@@ -341,18 +287,17 @@ namespace StaticMap.Net
                     {
                         tiles[rowUrls.Key][url.Key] = System.Net.WebRequest.Create(url.Value).GetResponse().GetResponseStream();
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-
+                        throw new Exception($"Calling {url.Value} is failed.", ex);
                     }
 
                 }
             }
 
             // Assemble all the tiles into a new image positioned as appropriate
-
-            Bitmap main = new Bitmap(width, height);
-            Graphics graphics = Graphics.FromImage(main);
+            var main = new Bitmap(otherMapProp.Width, otherMapProp.Height);
+            var graphics = Graphics.FromImage(main);
             graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             foreach (var ytiles in tiles)
             {
@@ -360,8 +305,8 @@ namespace StaticMap.Net
                 {
                     var x = int.Parse(ytiles.Key);
                     var y = int.Parse(ytile.Key);
-                    var ox = ((x - tilePos["x"]) * TILE_SIZE) - pos["x"] + (width / 2);
-                    var oy = ((y - tilePos["y"]) * TILE_SIZE) - pos["y"] + (height / 2);
+                    var ox = ((x - tilePos["x"]) * TILE_SIZE) - pos["x"] + (otherMapProp.Width / 2);
+                    var oy = ((y - tilePos["y"]) * TILE_SIZE) - pos["y"] + (otherMapProp.Height / 2);
                     if (ytile.Value != null)
                     {
                         graphics.DrawImage(Image.FromStream(ytile.Value), Convert.ToSingle(ox), Convert.ToSingle(oy), 256.0f, 256.0f);
@@ -373,32 +318,28 @@ namespace StaticMap.Net
             if (paths.Count > 0)
             {
                 // Draw the path with ImageMagick because GD sucks as anti-aliased lines
-
-                foreach (var path in pathProps)
+                foreach (var path in paths)
                 {
-                    Color color = ColorTranslator.FromHtml("#" + path["color"]);
-                    Pen pen = new Pen(color, Convert.ToSingle(path["weight"]));
-                    List<Point> points = new List<Point>();
+                    var color = ColorTranslator.FromHtml("#" + path.Color);
+                    var pen = new Pen(color, Convert.ToSingle(path.Weight));
+                    var points = new List<Point>();
 
-                    for (int i = 0; i < paths[path["path"]].Count; i++)
+                    for (int i = 0; i < path.Coordinates.Count; i++)
                     {
-                        var to = webmercator.LatLngToPixels(double.Parse(paths[path["path"]][i].Latitude), double.Parse(paths[path["path"]][i].Longitude), zoom);
+                        var to = WebMercator.LatLngToPixels(double.Parse(path.Coordinates[i].Latitude), double.Parse(path.Coordinates[i].Longitude), otherMapProp.Zoom);
                         points.Add(new Point(Convert.ToInt32(to["x"] - leftEdge), Convert.ToInt32(to["y"] - topEdge)));
                     }
                     graphics.DrawPolygon(pen, points.ToArray());
                 }
-
             }
 
             // Add markers
-            string markerImg = string.Empty;
             foreach (var marker in markers)
             {
                 // Icons with a shadow are centered at the bottom middle pixel.
                 // Icons with no shadow are centered in the center pixel.
-                var px = webmercator.LatLngToPixels(double.Parse(marker["lat"]), double.Parse(marker["lng"]), zoom);
-                markerImg = marker["iconImg"];
-                Image img = Image.FromFile(markerImg);
+                var px = WebMercator.LatLngToPixels(double.Parse(marker.Coordinate.Latitude), double.Parse(marker.Coordinate.Longitude), otherMapProp.Zoom);
+                var img = Image.FromFile(marker.IconImg);
                 float x = Convert.ToSingle(px["x"] - leftEdge - Math.Round(img.Width / 2.0));
                 float y = Convert.ToSingle(px["y"] - topEdge - img.Height);
                 graphics.DrawImage(img, x, y);
