@@ -19,10 +19,11 @@ namespace StaticMap.Net
         /// Any time facing problem in execution, visit main code at https://github.com/esripdx/Static-Maps-API-PHP/blob/master/img.php
         /// </summary>
         const short TILE_SIZE = 256;
+        readonly string tileService;
         // If any markers are specified, choose a default lat/lng as the center of all the markers
         readonly Dictionary<string, double> bounds;
                 
-        public StaticMap()
+        public StaticMap(string tileServiceUrl = "")
         {
             bounds = new Dictionary<string, double>{
               {"minLat" , 90},
@@ -30,6 +31,7 @@ namespace StaticMap.Net
               {"minLng" , 180},
               {"maxLng" , -180}
             };
+            tileService = tileServiceUrl;
         }
 
         public Dictionary<string, List<string>> GetDefaultTileServices()
@@ -218,7 +220,7 @@ namespace StaticMap.Net
             }
 
             //First check tileUrl from constructor 
-            if (string.IsNullOrWhiteSpace(otherMapProp.TileService))
+            if (string.IsNullOrWhiteSpace(tileService))
             {
                 var tileServices = GetDefaultTileServices();
                 //if tileUrl is not in constructor, try to get from querystring
@@ -232,6 +234,10 @@ namespace StaticMap.Net
                     otherMapProp.TileService = tileServices["osm"][0];
                 }
 
+            }
+            else
+            {
+                otherMapProp.TileService = tileService;
             }
             return otherMapProp;
         }
